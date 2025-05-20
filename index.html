@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>트러플마켓</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+      background: #f9f9f9;
+    }
+    .container {
+      max-width: 500px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    input, button {
+      width: 100%;
+      padding: 10px;
+      margin: 8px 0;
+      box-sizing: border-box;
+    }
+    .item {
+      border-bottom: 1px solid #ddd;
+      padding: 10px 0;
+    }
+  </style>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div class="container" id="loginPage">
+  <h2>트러플마켓 로그인</h2>
+  <input type="text" id="studentId" placeholder="학번 (예: 5101)">
+  <input type="password" id="password" placeholder="비밀번호">
+  <button onclick="login()">로그인</button>
+  <p id="loginMsg"></p>
+</div>
+
+<div class="container" id="mainPage" style="display:none;">
+  <h2>트러플마켓 🛒</h2>
+  <p><b id="userInfo"></b>님 환영합니다.</p>
+  <input type="text" id="itemName" placeholder="물건 이름">
+  <input type="number" id="price" placeholder="가격 (서창)">
+  <button onclick="addItem()">물건 등록</button>
+  <h3>판매 목록</h3>
+  <div id="itemList"></div>
+</div>
+
+<script>
+  // Firebase 초기화
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_AUTH_DOMAIN",
+    projectId: "YOUR_PROJECT_ID",
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  // 로그인 관련
+  const validIds = Array.from({ length: 23 }, (_, i) => i + 1)
+    .filter(n => n !== 20)
+    .map(n => "51" + String(n).padStart(2, '0'));
+
+  let currentUser = null;
+
+  function login() {
+    const id = document.getElementById("studentId").value;
+    const pw = document.getElementById("password").value;
+    if (pw !== "1234") {
+      document.getElementById("loginMsg").innerText = "비밀번호가 틀렸습니다.";
+      return;
+    }
+    if (!validIds.includes(id)) {
+      document.getElementById("loginMsg").innerText = "유효하지 않은 학번입니다.";
+      return;
+    }
+    currentUser = id;
+    document.getElementById("loginPage").style.display = "none";
+    document.getElementById("mainPage").style.display = "block";
+    document.getElementById("userInfo").innerText = id;
+    loadItems();
+  }
+
+  // 아이템 등록
+  function addItem() {
+    const name = document.getElementById("itemName").value;
+    const price = document.getElementById("price").value;
+    if (!name || !price) return alert("물건 이름과 가격을 입력하세요.");
+    db.collection("items").add({
+      itemName: name,
+      price: parseInt(price),
+      seller: currentUser,
+      status: "판매중",
+      created: new Date()
+    }).then(() => {
+      document.getElementById("itemName").value = "";
+      document.getElementById("price").value = "";
+      loadItems();
+    });
+  }
+
+  // 아이템 불러오기
+  function loadItems() {
+    db.collection("items").orderBy("created", "desc").get().then(snapshot => {
+      const list = document.getElementById("itemList");
+      list.innerHTML = "";
+      snapshot.forEach(doc => {
+        const item = doc.data();
+        const div = document.createElement("div");
+        div.className = "item";
+        div.innerHTML = `<b>${item.itemName}</b> – ${item.price}서창<br>판매자: ${item.seller} | 상태: ${item.status}`;
+        if (item.seller === currentUser && item.status === "판매중") {
+          const btn = document.createElement("button");
+          btn.innerText = "판매완료로 변경";
+          btn.onclick = () => {
+            db.collection("items").doc(doc.id).update({ status: "판매완료" }).then(loadItems);
+          };
+          div.appendChild(btn);
+        }
+        list.appendChild(div);
+      });
+    });
+  }
+</script>
+</body>
+</html>
