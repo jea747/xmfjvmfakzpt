@@ -4,173 +4,273 @@
   <meta charset="UTF-8" />
   <title>트러플마켓</title>
   <style>
-    body { font-family: sans-serif; background: #f5f5dc; padding: 20px; }
-    .container { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 10px; }
-    input, button, textarea { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box; }
-    .item { border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; border-radius: 5px; }
-    #chatBox { height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; border-radius: 5px; background: #fafafa; }
-    .chatMsg { margin-bottom: 5px; }
-    .chatMsg b { color: #555; }
+    body {
+      font-family: sans-serif;
+      max-width: 600px;
+      margin: 20px auto;
+      background: #fff8dc;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 0 15px #eee;
+    }
+    input, button {
+      width: 100%;
+      padding: 10px;
+      margin: 8px 0;
+      font-size: 1rem;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+    button {
+      background: #ffd966;
+      border: none;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background: #ffcc33;
+    }
+    .item {
+      border-bottom: 1px solid #ddd;
+      padding: 10px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .item-info {
+      flex-grow: 1;
+      white-space: pre-wrap;
+    }
+    .status-btn, .edit-btn, .delete-btn {
+      margin-left: 6px;
+      font-size: 0.9rem;
+      padding: 5px 10px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+    }
+    .status-btn {
+      background: #a2d5f2;
+    }
+    .status-btn.done {
+      background: #b6d7a8;
+      color: #3a662e;
+    }
+    .edit-btn {
+      background: #f7b733;
+      color: #fff;
+    }
+    .delete-btn {
+      background: #ff6b6b;
+      color: #fff;
+    }
+    .edit-input {
+      width: 45%;
+      margin-right: 10px;
+    }
   </style>
-  <!-- Firebase SDK -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, onSnapshot, query, orderBy, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyBZK8xjYlxsR3wMHFDTvYa6UI0XarCGOqo",
-      authDomain: "trufflemarket-54e66.firebaseapp.com",
-      projectId: "trufflemarket-54e66",
-      storageBucket: "trufflemarket-54e66.appspot.com",
-      messagingSenderId: "1056110732499",
-      appId: "1:1056110732499:web:e3f86054bfb48a04932026",
-      measurementId: "G-481HX1YEWP"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    // 유효한 학번 목록 (20 제외)
-    const validIds = Array.from({ length: 23 }, (_, i) => i + 1).filter(n => n !== 20).map(n => "51" + String(n).padStart(2, '0'));
-
-    let currentUser = null;
-
-    window.login = () => {
-      const id = document.getElementById("studentId").value.trim();
-      const pw = document.getElementById("password").value.trim();
-      if (pw !== "1234" || !validIds.includes(id)) {
-        alert("로그인 실패! 학번과 비밀번호를 확인하세요.");
-        return;
-      }
-      currentUser = id;
-      document.getElementById("loginPage").style.display = "none";
-      document.getElementById("mainPage").style.display = "block";
-      document.getElementById("userInfo").innerText = currentUser;
-      loadItems();
-      setupChatListener();
-    };
-
-    window.addItem = async () => {
-      const name = document.getElementById("itemName").value.trim();
-      const price = Number(document.getElementById("price").value);
-      if (!name || !price) {
-        alert("물건 이름과 가격을 모두 입력하세요.");
-        return;
-      }
-      try {
-        await addDoc(collection(db, "items"), {
-          itemName: name,
-          price: price,
-          seller: currentUser,
-          status: "판매중",
-          created: new Date()
-        });
-        document.getElementById("itemName").value = "";
-        document.getElementById("price").value = "";
-        loadItems();
-      } catch(e) {
-        alert("물건 등록 실패: " + e.message);
-      }
-    };
-
-    async function loadItems() {
-      const list = document.getElementById("itemList");
-      list.innerHTML = "";
-      try {
-        const q = query(collection(db, "items"), orderBy("created", "desc"));
-        const querySnapshot = await getDocs(q);
-        querySnapshot.forEach(docSnap => {
-          const item = docSnap.data();
-          const div = document.createElement("div");
-          div.className = "item";
-          div.innerHTML = `
-            <b>${item.itemName}</b> – ${item.price} 서창<br>
-            판매자: ${item.seller} | 상태: ${item.status}<br>
-          `;
-
-          // 본인 물건만 판매완료, 삭제 버튼 보이기
-          if (item.seller === currentUser) {
-            const doneBtn = document.createElement("button");
-            doneBtn.innerText = "판매완료";
-            doneBtn.onclick = async () => {
-              await updateDoc(doc(db, "items", docSnap.id), { status: "판매완료" });
-              loadItems();
-            };
-            const delBtn = document.createElement("button");
-            delBtn.innerText = "삭제";
-            delBtn.onclick = async () => {
-              await deleteDoc(doc(db, "items", docSnap.id));
-              loadItems();
-            };
-            div.appendChild(doneBtn);
-            div.appendChild(delBtn);
-          }
-
-          list.appendChild(div);
-        });
-      } catch(e) {
-        alert("목록 불러오기 실패: " + e.message);
-      }
-    }
-
-    window.sendMessage = async () => {
-      const msgInput = document.getElementById("chatInput");
-      const msg = msgInput.value.trim();
-      if (!msg) return;
-      try {
-        await addDoc(collection(db, "chats"), {
-          sender: currentUser,
-          message: msg,
-          created: new Date()
-        });
-        msgInput.value = "";
-      } catch(e) {
-        alert("채팅 전송 실패: " + e.message);
-      }
-    };
-
-    function setupChatListener() {
-      const chatBox = document.getElementById("chatBox");
-      const q = query(collection(db, "chats"), orderBy("created"));
-
-      onSnapshot(q, (snapshot) => {
-        chatBox.innerHTML = "";
-        snapshot.forEach(docSnap => {
-          const chat = docSnap.data();
-          const div = document.createElement("div");
-          div.className = "chatMsg";
-          div.innerHTML = `<b>${chat.sender}</b>: ${chat.message}`;
-          chatBox.appendChild(div);
-        });
-        chatBox.scrollTop = chatBox.scrollHeight;
-      });
-    }
-  </script>
 </head>
 <body>
-  <div class="container" id="loginPage">
-    <h2>트러플마켓 로그인</h2>
-    <input type="text" id="studentId" placeholder="학번 (예: 5101)" />
-    <input type="password" id="password" placeholder="비밀번호" />
-    <button onclick="login()">로그인</button>
-  </div>
 
-  <div class="container" id="mainPage" style="display:none;">
-    <h2>트러플마켓 🛒</h2>
-    <p><b id="userInfo"></b>님 환영합니다!</p>
+<h2>트러플마켓 로그인</h2>
+<input id="studentId" placeholder="학번 (예: 5101)" />
+<input id="password" placeholder="비밀번호" type="password" />
+<button onclick="login()">로그인</button>
+<p id="loginMsg" style="color:red;"></p>
 
-    <h3>물건 등록</h3>
-    <input type="text" id="itemName" placeholder="물건 이름" />
-    <input type="number" id="price" placeholder="가격 (서창)" />
-    <button onclick="addItem()">물건 등록</button>
+<div id="mainPage" style="display:none;">
+  <h2>트러플마켓 🛒</h2>
+  <p><b id="userInfo"></b>님 환영합니다.</p>
 
-    <h3>판매 목록</h3>
-    <div id="itemList"></div>
+  <input id="itemName" placeholder="물건 이름" />
+  <input id="price" placeholder="가격 (서창)" type="number" min="1" />
+  <button onclick="addItem()">물건 등록</button>
 
-    <h3>채팅</h3>
-    <div id="chatBox"></div>
-    <textarea id="chatInput" rows="3" placeholder="메시지를 입력하세요"></textarea>
-    <button onclick="sendMessage()">전송</button>
-  </div>
+  <h3>판매 목록</h3>
+  <div id="itemList"></div>
+</div>
+
+<script>
+  const validIds = Array.from({ length: 23 }, (_, i) => i + 1)
+    .filter(n => n !== 20)
+    .map(n => "51" + String(n).padStart(2, '0'));
+
+  let currentUser = null;
+  let items = [];
+  let editingId = null; // 현재 수정 중인 아이템 id
+
+  function login() {
+    const id = document.getElementById('studentId').value.trim();
+    const pw = document.getElementById('password').value;
+    const msg = document.getElementById('loginMsg');
+
+    if (pw !== '1234') {
+      msg.textContent = '비밀번호가 틀렸습니다.';
+      return;
+    }
+    if (!validIds.includes(id)) {
+      msg.textContent = '유효하지 않은 학번입니다.';
+      return;
+    }
+
+    currentUser = id;
+    msg.textContent = '';
+    document.getElementById('userInfo').textContent = id;
+    document.getElementById('mainPage').style.display = 'block';
+    document.getElementById('studentId').style.display = 'none';
+    document.getElementById('password').style.display = 'none';
+    document.querySelector('button').style.display = 'none';
+
+    renderItems();
+  }
+
+  function addItem() {
+    const name = document.getElementById('itemName').value.trim();
+    const price = document.getElementById('price').value;
+
+    if (!name || !price || price <= 0) {
+      alert('물건 이름과 올바른 가격(서창)을 입력하세요.');
+      return;
+    }
+
+    items.unshift({
+      itemName: name,
+      price: Number(price),
+      seller: currentUser,
+      status: '판매중',
+      id: Date.now() + Math.random()
+    });
+
+    document.getElementById('itemName').value = '';
+    document.getElementById('price').value = '';
+    renderItems();
+  }
+
+  function toggleStatus(id) {
+    items = items.map(item => {
+      if (item.id === id && item.seller === currentUser) {
+        item.status = item.status === '판매중' ? '판매완료' : '판매중';
+      }
+      return item;
+    });
+    renderItems();
+  }
+
+  function deleteItem(id) {
+    if (!confirm('정말 삭제할까요?')) return;
+    items = items.filter(item => item.id !== id || item.seller !== currentUser);
+    renderItems();
+  }
+
+  function startEdit(id) {
+    if (editingId !== null) {
+      alert('먼저 수정 중인 글을 저장하거나 취소하세요.');
+      return;
+    }
+    editingId = id;
+    renderItems();
+  }
+
+  function saveEdit(id) {
+    const nameInput = document.getElementById('edit-name-' + id);
+    const priceInput = document.getElementById('edit-price-' + id);
+    const newName = nameInput.value.trim();
+    const newPrice = priceInput.value;
+
+    if (!newName || !newPrice || newPrice <= 0) {
+      alert('물건 이름과 올바른 가격(서창)을 입력하세요.');
+      return;
+    }
+
+    items = items.map(item => {
+      if (item.id === id && item.seller === currentUser) {
+        item.itemName = newName;
+        item.price = Number(newPrice);
+      }
+      return item;
+    });
+
+    editingId = null;
+    renderItems();
+  }
+
+  function cancelEdit() {
+    editingId = null;
+    renderItems();
+  }
+
+  function renderItems() {
+    const list = document.getElementById('itemList');
+    list.innerHTML = '';
+
+    items.forEach(item => {
+      const div = document.createElement('div');
+      div.className = 'item';
+
+      if (editingId === item.id && item.seller === currentUser) {
+        // 수정 중 UI
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.value = item.itemName;
+        nameInput.id = 'edit-name-' + item.id;
+        nameInput.className = 'edit-input';
+
+        const priceInput = document.createElement('input');
+        priceInput.type = 'number';
+        priceInput.min = 1;
+        priceInput.value = item.price;
+        priceInput.id = 'edit-price-' + item.id;
+        priceInput.className = 'edit-input';
+
+        div.appendChild(nameInput);
+        div.appendChild(priceInput);
+
+        const saveBtn = document.createElement('button');
+        saveBtn.textContent = '저장';
+        saveBtn.className = 'edit-btn';
+        saveBtn.onclick = () => saveEdit(item.id);
+        div.appendChild(saveBtn);
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.textContent = '취소';
+        cancelBtn.className = 'delete-btn';
+        cancelBtn.onclick = cancelEdit;
+        div.appendChild(cancelBtn);
+
+      } else {
+        // 일반 UI
+        const info = document.createElement('div');
+        info.className = 'item-info';
+        info.innerHTML = `<b>${item.itemName}</b> – ${item.price} 서창<br>판매자: ${item.seller} | 상태: ${item.status}`;
+        div.appendChild(info);
+
+        if (item.seller === currentUser) {
+          const statusBtn = document.createElement('button');
+          statusBtn.className = 'status-btn' + (item.status === '판매완료' ? ' done' : '');
+          statusBtn.textContent = item.status === '판매중' ? '판매완료로 변경' : '판매중으로 변경';
+          statusBtn.onclick = () => toggleStatus(item.id);
+          div.appendChild(statusBtn);
+
+          const editBtn = document.createElement('button');
+          editBtn.textContent = '수정';
+          editBtn.className = 'edit-btn';
+          editBtn.onclick = () => startEdit(item.id);
+          div.appendChild(editBtn);
+
+          const deleteBtn = document.createElement('button');
+          deleteBtn.textContent = '삭제';
+          deleteBtn.className = 'delete-btn';
+          deleteBtn.onclick = () => deleteItem(item.id);
+          div.appendChild(deleteBtn);
+        }
+      }
+
+      list.appendChild(div);
+    });
+  }
+</script>
+
 </body>
 </html>
