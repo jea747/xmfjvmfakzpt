@@ -1,276 +1,321 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <title>트러플마켓</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      max-width: 600px;
-      margin: 20px auto;
-      background: #fff8dc;
-      padding: 20px;
-      border-radius: 12px;
-      box-shadow: 0 0 15px #eee;
-    }
-    input, button {
-      width: 100%;
-      padding: 10px;
-      margin: 8px 0;
-      font-size: 1rem;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-      box-sizing: border-box;
-    }
-    button {
-      background: #ffd966;
-      border: none;
-      cursor: pointer;
-      font-weight: bold;
-      transition: background 0.3s;
-    }
-    button:hover {
-      background: #ffcc33;
-    }
-    .item {
-      border-bottom: 1px solid #ddd;
-      padding: 10px 0;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .item-info {
-      flex-grow: 1;
-      white-space: pre-wrap;
-    }
-    .status-btn, .edit-btn, .delete-btn {
-      margin-left: 6px;
-      font-size: 0.9rem;
-      padding: 5px 10px;
-      border-radius: 8px;
-      border: none;
-      cursor: pointer;
-    }
-    .status-btn {
-      background: #a2d5f2;
-    }
-    .status-btn.done {
-      background: #b6d7a8;
-      color: #3a662e;
-    }
-    .edit-btn {
-      background: #f7b733;
-      color: #fff;
-    }
-    .delete-btn {
-      background: #ff6b6b;
-      color: #fff;
-    }
-    .edit-input {
-      width: 45%;
-      margin-right: 10px;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>트러플마켓</title>
+<style>
+  body {
+    font-family: sans-serif;
+    margin: 20px;
+    background: #f9f9f9;
+  }
+  .container {
+    max-width: 600px;
+    margin: auto;
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  }
+  input, button, textarea {
+    width: 100%;
+    padding: 10px;
+    margin: 6px 0;
+    box-sizing: border-box;
+  }
+  .item {
+    border-bottom: 1px solid #ddd;
+    padding: 10px 0;
+    position: relative;
+  }
+  .item img {
+    max-width: 100px;
+    max-height: 80px;
+    vertical-align: middle;
+    margin-right: 10px;
+  }
+  .item-actions {
+    margin-top: 6px;
+  }
+  .chat-container {
+    max-width: 600px;
+    margin: 20px auto;
+    background: white;
+    border-radius: 10px;
+    padding: 10px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  }
+  .chat-messages {
+    height: 200px;
+    overflow-y: auto;
+    border: 1px solid #ccc;
+    padding: 8px;
+    margin-bottom: 10px;
+  }
+  .chat-message {
+    margin-bottom: 6px;
+  }
+  .chat-message b {
+    margin-right: 4px;
+  }
+</style>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
 </head>
 <body>
 
-<h2>트러플마켓 로그인</h2>
-<input id="studentId" placeholder="학번 (예: 5101)" />
-<input id="password" placeholder="비밀번호" type="password" />
-<button onclick="login()">로그인</button>
-<p id="loginMsg" style="color:red;"></p>
+<div class="container" id="loginPage">
+  <h2>트러플마켓 로그인</h2>
+  <input type="text" id="studentId" placeholder="학번 (예: 5101)" />
+  <input type="password" id="password" placeholder="비밀번호" />
+  <button onclick="login()">로그인</button>
+  <p id="loginMsg" style="color:red;"></p>
+</div>
 
-<div id="mainPage" style="display:none;">
+<div class="container" id="mainPage" style="display:none;">
   <h2>트러플마켓 🛒</h2>
   <p><b id="userInfo"></b>님 환영합니다.</p>
 
-  <input id="itemName" placeholder="물건 이름" />
-  <input id="price" placeholder="가격 (서창)" type="number" min="1" />
-  <button onclick="addItem()">물건 등록</button>
+  <h3>새 물건 등록</h3>
+  <input type="text" id="itemName" placeholder="물건 이름" />
+  <input type="number" id="price" placeholder="가격 (서창)" />
+  <input type="file" id="itemImage" accept="image/*" />
+  <button onclick="addItem()">등록</button>
 
   <h3>판매 목록</h3>
   <div id="itemList"></div>
 </div>
 
+<div class="chat-container" id="chatPage" style="display:none;">
+  <h3>채팅</h3>
+  <div class="chat-messages" id="chatMessages"></div>
+  <textarea id="chatInput" placeholder="메시지를 입력하세요" rows="2"></textarea>
+  <button onclick="sendChat()">전송</button>
+</div>
+
 <script>
-  const validIds = Array.from({ length: 23 }, (_, i) => i + 1)
-    .filter(n => n !== 20)
-    .map(n => "51" + String(n).padStart(2, '0'));
+  // Firebase 설정
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_AUTH_DOMAIN",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_STORAGE_BUCKET",
+  };
+  firebase.initializeApp(firebaseConfig);
+
+  const db = firebase.firestore();
+  const storage = firebase.storage();
+
+  // 로그인 가능한 학번 목록 (20번 없음)
+  const validIds = Array.from({length:23}, (_,i)=>i+1)
+    .filter(n=>n!==20)
+    .map(n=>"51"+String(n).padStart(2,'0'));
 
   let currentUser = null;
-  let items = [];
-  let editingId = null; // 현재 수정 중인 아이템 id
+  let editingId = null; // 수정중인 아이템 ID
 
-  function login() {
+  // 로그인 함수
+  function login(){
     const id = document.getElementById('studentId').value.trim();
-    const pw = document.getElementById('password').value;
-    const msg = document.getElementById('loginMsg');
+    const pw = document.getElementById('password').value.trim();
 
-    if (pw !== '1234') {
-      msg.textContent = '비밀번호가 틀렸습니다.';
+    if(pw !== "1234"){
+      document.getElementById('loginMsg').innerText = "비밀번호가 틀렸습니다.";
       return;
     }
-    if (!validIds.includes(id)) {
-      msg.textContent = '유효하지 않은 학번입니다.';
+    if(!validIds.includes(id)){
+      document.getElementById('loginMsg').innerText = "유효하지 않은 학번입니다.";
       return;
     }
 
     currentUser = id;
-    msg.textContent = '';
-    document.getElementById('userInfo').textContent = id;
+    document.getElementById('loginPage').style.display = 'none';
     document.getElementById('mainPage').style.display = 'block';
-    document.getElementById('studentId').style.display = 'none';
-    document.getElementById('password').style.display = 'none';
-    document.querySelector('button').style.display = 'none';
+    document.getElementById('chatPage').style.display = 'block';
+    document.getElementById('userInfo').innerText = currentUser;
 
-    renderItems();
+    loadItems();
+    loadChats();
   }
 
-  function addItem() {
+  // 물건 등록 함수
+  async function addItem(){
     const name = document.getElementById('itemName').value.trim();
-    const price = document.getElementById('price').value;
+    const price = document.getElementById('price').value.trim();
+    const imageFile = document.getElementById('itemImage').files[0];
 
-    if (!name || !price || price <= 0) {
+    if(!name || !price || price <= 0){
       alert('물건 이름과 올바른 가격(서창)을 입력하세요.');
       return;
     }
 
-    items.unshift({
+    let imageUrl = "";
+    if(imageFile){
+      const imgRef = storage.ref().child(`itemImages/${currentUser}_${Date.now()}_${imageFile.name}`);
+      await imgRef.put(imageFile);
+      imageUrl = await imgRef.getDownloadURL();
+    }
+
+    await db.collection("items").add({
       itemName: name,
       price: Number(price),
       seller: currentUser,
-      status: '판매중',
-      id: Date.now() + Math.random()
+      status: "판매중",
+      imageUrl: imageUrl,
+      created: firebase.firestore.FieldValue.serverTimestamp()
     });
 
+    // 초기화
     document.getElementById('itemName').value = '';
     document.getElementById('price').value = '';
-    renderItems();
+    document.getElementById('itemImage').value = '';
+
+    loadItems();
   }
 
-  function toggleStatus(id) {
-    items = items.map(item => {
-      if (item.id === id && item.seller === currentUser) {
-        item.status = item.status === '판매중' ? '판매완료' : '판매중';
-      }
-      return item;
-    });
-    renderItems();
-  }
-
-  function deleteItem(id) {
-    if (!confirm('정말 삭제할까요?')) return;
-    items = items.filter(item => item.id !== id || item.seller !== currentUser);
-    renderItems();
-  }
-
-  function startEdit(id) {
-    if (editingId !== null) {
-      alert('먼저 수정 중인 글을 저장하거나 취소하세요.');
-      return;
-    }
-    editingId = id;
-    renderItems();
-  }
-
-  function saveEdit(id) {
-    const nameInput = document.getElementById('edit-name-' + id);
-    const priceInput = document.getElementById('edit-price-' + id);
-    const newName = nameInput.value.trim();
-    const newPrice = priceInput.value;
-
-    if (!newName || !newPrice || newPrice <= 0) {
-      alert('물건 이름과 올바른 가격(서창)을 입력하세요.');
-      return;
-    }
-
-    items = items.map(item => {
-      if (item.id === id && item.seller === currentUser) {
-        item.itemName = newName;
-        item.price = Number(newPrice);
-      }
-      return item;
-    });
-
-    editingId = null;
-    renderItems();
-  }
-
-  function cancelEdit() {
-    editingId = null;
-    renderItems();
-  }
-
-  function renderItems() {
+  // 아이템 불러오기 & 렌더링
+  async function loadItems(){
+    const snapshot = await db.collection("items").orderBy("created", "desc").get();
     const list = document.getElementById('itemList');
-    list.innerHTML = '';
+    list.innerHTML = "";
 
-    items.forEach(item => {
+    snapshot.forEach(doc=>{
+      const item = doc.data();
+      const id = doc.id;
+
       const div = document.createElement('div');
       div.className = 'item';
 
-      if (editingId === item.id && item.seller === currentUser) {
-        // 수정 중 UI
-        const nameInput = document.createElement('input');
-        nameInput.type = 'text';
-        nameInput.value = item.itemName;
-        nameInput.id = 'edit-name-' + item.id;
-        nameInput.className = 'edit-input';
+      let imgTag = "";
+      if(item.imageUrl){
+        imgTag = `<img src="${item.imageUrl}" alt="사진" />`;
+      }
 
-        const priceInput = document.createElement('input');
-        priceInput.type = 'number';
-        priceInput.min = 1;
-        priceInput.value = item.price;
-        priceInput.id = 'edit-price-' + item.id;
-        priceInput.className = 'edit-input';
-
-        div.appendChild(nameInput);
-        div.appendChild(priceInput);
-
-        const saveBtn = document.createElement('button');
-        saveBtn.textContent = '저장';
-        saveBtn.className = 'edit-btn';
-        saveBtn.onclick = () => saveEdit(item.id);
-        div.appendChild(saveBtn);
-
-        const cancelBtn = document.createElement('button');
-        cancelBtn.textContent = '취소';
-        cancelBtn.className = 'delete-btn';
-        cancelBtn.onclick = cancelEdit;
-        div.appendChild(cancelBtn);
-
+      // 수정 중인 아이템 렌더링
+      if(editingId === id && item.seller === currentUser){
+        div.innerHTML = `
+          <input type="text" id="editName" value="${item.itemName}" />
+          <input type="number" id="editPrice" value="${item.price}" />
+          <select id="editStatus">
+            <option value="판매중" ${item.status==="판매중"?"selected":""}>판매중</option>
+            <option value="판매완료" ${item.status==="판매완료"?"selected":""}>판매완료</option>
+          </select>
+          <button onclick="saveEdit('${id}')">저장</button>
+          <button onclick="cancelEdit()">취소</button>
+        `;
       } else {
-        // 일반 UI
-        const info = document.createElement('div');
-        info.className = 'item-info';
-        info.innerHTML = `<b>${item.itemName}</b> – ${item.price} 서창<br>판매자: ${item.seller} | 상태: ${item.status}`;
-        div.appendChild(info);
+        div.innerHTML = `
+          ${imgTag} <b>${item.itemName}</b> – ${item.price} 서창<br/>
+          판매자: ${item.seller} | 상태: ${item.status}
+        `;
 
-        if (item.seller === currentUser) {
-          const statusBtn = document.createElement('button');
-          statusBtn.className = 'status-btn' + (item.status === '판매완료' ? ' done' : '');
-          statusBtn.textContent = item.status === '판매중' ? '판매완료로 변경' : '판매중으로 변경';
-          statusBtn.onclick = () => toggleStatus(item.id);
-          div.appendChild(statusBtn);
+        // 수정/삭제 버튼
+        if(item.seller === currentUser){
+          const btnEdit = document.createElement('button');
+          btnEdit.innerText = '수정';
+          btnEdit.onclick = () => {
+            editingId = id;
+            loadItems();
+          };
+          const btnDelete = document.createElement('button');
+          btnDelete.innerText = '삭제';
+          btnDelete.onclick = () => {
+            if(confirm("정말 삭제하시겠습니까?")){
+              db.collection("items").doc(id).delete().then(loadItems);
+            }
+          };
+          const btnComplete = document.createElement('button');
+          btnComplete.innerText = item.status === "판매중" ? "판매완료로 변경" : "판매중으로 변경";
+          btnComplete.onclick = () => {
+            db.collection("items").doc(id).update({
+              status: item.status === "판매중" ? "판매완료" : "판매중"
+            }).then(loadItems);
+          };
 
-          const editBtn = document.createElement('button');
-          editBtn.textContent = '수정';
-          editBtn.className = 'edit-btn';
-          editBtn.onclick = () => startEdit(item.id);
-          div.appendChild(editBtn);
-
-          const deleteBtn = document.createElement('button');
-          deleteBtn.textContent = '삭제';
-          deleteBtn.className = 'delete-btn';
-          deleteBtn.onclick = () => deleteItem(item.id);
-          div.appendChild(deleteBtn);
+          const actionDiv = document.createElement('div');
+          actionDiv.className = 'item-actions';
+          actionDiv.appendChild(btnEdit);
+          actionDiv.appendChild(btnDelete);
+          actionDiv.appendChild(btnComplete);
+          div.appendChild(actionDiv);
         }
       }
 
       list.appendChild(div);
     });
   }
-</script>
 
+  // 수정 저장 함수
+  async function saveEdit(id){
+    const newName = document.getElementById('editName').value.trim();
+    const newPrice = document.getElementById('editPrice').value.trim();
+    const newStatus = document.getElementById('editStatus').value;
+
+    if(!newName || !newPrice || newPrice <= 0){
+      alert('물건 이름과 올바른 가격(서창)을 입력하세요.');
+      return;
+    }
+
+    await db.collection("items").doc(id).update({
+      itemName: newName,
+      price: Number(newPrice),
+      status: newStatus
+    });
+    editingId = null;
+    loadItems();
+  }
+
+  function cancelEdit(){
+    editingId = null;
+    loadItems();
+  }
+
+  // 채팅 기능
+
+  const chatMessagesDiv = document.getElementById('chatMessages');
+  const chatInput = document.getElementById('chatInput');
+
+  function loadChats(){
+    db.collection("chat").orderBy("created", "asc").onSnapshot(snapshot=>{
+      chatMessagesDiv.innerHTML = "";
+      snapshot.forEach(doc=>{
+        const msg = doc.data();
+        const div = document.createElement('div');
+        div.className = 'chat-message';
+        div.innerHTML = `<b>${msg.user}</b>: ${escapeHtml(msg.text)}`;
+        chatMessagesDiv.appendChild(div);
+      });
+      chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight;
+    });
+  }
+
+  function sendChat(){
+    const text = chatInput.value.trim();
+    if(!text) return;
+
+    db.collection("chat").add({
+      user: currentUser,
+      text: text,
+      created: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    chatInput.value = "";
+  }
+
+  // XSS 방지용 escape 함수
+  function escapeHtml(text) {
+    return text.replace(/[&<>"']/g, m => ({
+      '&':'&amp;',
+      '<':'&lt;',
+      '>':'&gt;',
+      '"':'&quot;',
+      "'":'&#39;'
+    })[m]);
+  }
+
+</script>
 </body>
 </html>
