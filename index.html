@@ -1,321 +1,166 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>트러플마켓</title>
-<style>
-  body {
-    font-family: sans-serif;
-    margin: 20px;
-    background: #f9f9f9;
-  }
-  .container {
-    max-width: 600px;
-    margin: auto;
-    background: white;
-    padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1);
-  }
-  input, button, textarea {
-    width: 100%;
-    padding: 10px;
-    margin: 6px 0;
-    box-sizing: border-box;
-  }
-  .item {
-    border-bottom: 1px solid #ddd;
-    padding: 10px 0;
-    position: relative;
-  }
-  .item img {
-    max-width: 100px;
-    max-height: 80px;
-    vertical-align: middle;
-    margin-right: 10px;
-  }
-  .item-actions {
-    margin-top: 6px;
-  }
-  .chat-container {
-    max-width: 600px;
-    margin: 20px auto;
-    background: white;
-    border-radius: 10px;
-    padding: 10px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1);
-  }
-  .chat-messages {
-    height: 200px;
-    overflow-y: auto;
-    border: 1px solid #ccc;
-    padding: 8px;
-    margin-bottom: 10px;
-  }
-  .chat-message {
-    margin-bottom: 6px;
-  }
-  .chat-message b {
-    margin-right: 4px;
-  }
-</style>
-
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
+  <meta charset="UTF-8">
+  <title>트러플마켓</title>
+  <style>
+    body { font-family: sans-serif; background: #f8f8f8; margin: 0; padding: 20px; }
+    .container { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    input, button, textarea { width: 100%; padding: 10px; margin: 8px 0; box-sizing: border-box; }
+    .item, .chat { border-bottom: 1px solid #ddd; padding: 10px 0; }
+    .item img { max-width: 100px; display: block; margin: 5px 0; }
+    .chat-box { max-height: 300px; overflow-y: auto; background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 6px; }
+  </style>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
 </head>
 <body>
-
 <div class="container" id="loginPage">
   <h2>트러플마켓 로그인</h2>
-  <input type="text" id="studentId" placeholder="학번 (예: 5101)" />
-  <input type="password" id="password" placeholder="비밀번호" />
+  <input type="text" id="studentId" placeholder="학번 (예: 5101)">
+  <input type="password" id="password" placeholder="비밀번호">
   <button onclick="login()">로그인</button>
-  <p id="loginMsg" style="color:red;"></p>
+  <p id="loginMsg"></p>
 </div>
 
 <div class="container" id="mainPage" style="display:none;">
   <h2>트러플마켓 🛒</h2>
   <p><b id="userInfo"></b>님 환영합니다.</p>
-
-  <h3>새 물건 등록</h3>
-  <input type="text" id="itemName" placeholder="물건 이름" />
-  <input type="number" id="price" placeholder="가격 (서창)" />
-  <input type="file" id="itemImage" accept="image/*" />
-  <button onclick="addItem()">등록</button>
-
+  <input type="text" id="itemName" placeholder="물건 이름">
+  <input type="number" id="price" placeholder="가격 (서창)">
+  <input type="file" id="photo">
+  <button onclick="addItem()">물건 등록</button>
   <h3>판매 목록</h3>
   <div id="itemList"></div>
 </div>
 
-<div class="chat-container" id="chatPage" style="display:none;">
-  <h3>채팅</h3>
-  <div class="chat-messages" id="chatMessages"></div>
-  <textarea id="chatInput" placeholder="메시지를 입력하세요" rows="2"></textarea>
-  <button onclick="sendChat()">전송</button>
+<!-- 채팅 모달 -->
+<div class="container" id="chatPage" style="display:none;">
+  <h2>채팅</h2>
+  <div class="chat-box" id="chatBox"></div>
+  <textarea id="chatInput" placeholder="메시지"></textarea>
+  <button onclick="sendMessage()">보내기</button>
+  <button onclick="closeChat()">닫기</button>
 </div>
 
 <script>
-  // Firebase 설정
   const firebaseConfig = {
     apiKey: "YOUR_API_KEY",
     authDomain: "YOUR_AUTH_DOMAIN",
     projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_STORAGE_BUCKET",
+    storageBucket: "YOUR_STORAGE_BUCKET"
   };
   firebase.initializeApp(firebaseConfig);
-
   const db = firebase.firestore();
   const storage = firebase.storage();
 
-  // 로그인 가능한 학번 목록 (20번 없음)
-  const validIds = Array.from({length:23}, (_,i)=>i+1)
-    .filter(n=>n!==20)
-    .map(n=>"51"+String(n).padStart(2,'0'));
-
+  const validIds = Array.from({ length: 23 }, (_, i) => i + 1).filter(n => n !== 20).map(n => "51" + String(n).padStart(2, '0'));
   let currentUser = null;
-  let editingId = null; // 수정중인 아이템 ID
+  let currentChatUser = null;
 
-  // 로그인 함수
-  function login(){
-    const id = document.getElementById('studentId').value.trim();
-    const pw = document.getElementById('password').value.trim();
-
-    if(pw !== "1234"){
-      document.getElementById('loginMsg').innerText = "비밀번호가 틀렸습니다.";
-      return;
-    }
-    if(!validIds.includes(id)){
-      document.getElementById('loginMsg').innerText = "유효하지 않은 학번입니다.";
-      return;
-    }
-
+  function login() {
+    const id = document.getElementById("studentId").value;
+    const pw = document.getElementById("password").value;
+    if (pw !== "1234") return document.getElementById("loginMsg").innerText = "비밀번호가 틀렸습니다.";
+    if (!validIds.includes(id)) return document.getElementById("loginMsg").innerText = "유효하지 않은 학번입니다.";
     currentUser = id;
-    document.getElementById('loginPage').style.display = 'none';
-    document.getElementById('mainPage').style.display = 'block';
-    document.getElementById('chatPage').style.display = 'block';
-    document.getElementById('userInfo').innerText = currentUser;
-
-    loadItems();
-    loadChats();
-  }
-
-  // 물건 등록 함수
-  async function addItem(){
-    const name = document.getElementById('itemName').value.trim();
-    const price = document.getElementById('price').value.trim();
-    const imageFile = document.getElementById('itemImage').files[0];
-
-    if(!name || !price || price <= 0){
-      alert('물건 이름과 올바른 가격(서창)을 입력하세요.');
-      return;
-    }
-
-    let imageUrl = "";
-    if(imageFile){
-      const imgRef = storage.ref().child(`itemImages/${currentUser}_${Date.now()}_${imageFile.name}`);
-      await imgRef.put(imageFile);
-      imageUrl = await imgRef.getDownloadURL();
-    }
-
-    await db.collection("items").add({
-      itemName: name,
-      price: Number(price),
-      seller: currentUser,
-      status: "판매중",
-      imageUrl: imageUrl,
-      created: firebase.firestore.FieldValue.serverTimestamp()
-    });
-
-    // 초기화
-    document.getElementById('itemName').value = '';
-    document.getElementById('price').value = '';
-    document.getElementById('itemImage').value = '';
-
+    document.getElementById("loginPage").style.display = "none";
+    document.getElementById("mainPage").style.display = "block";
+    document.getElementById("userInfo").innerText = id;
     loadItems();
   }
 
-  // 아이템 불러오기 & 렌더링
-  async function loadItems(){
-    const snapshot = await db.collection("items").orderBy("created", "desc").get();
-    const list = document.getElementById('itemList');
-    list.innerHTML = "";
+  function addItem() {
+    const name = document.getElementById("itemName").value;
+    const price = document.getElementById("price").value;
+    const file = document.getElementById("photo").files[0];
+    if (!name || !price || !file) return alert("모든 항목을 입력해주세요.");
 
-    snapshot.forEach(doc=>{
-      const item = doc.data();
-      const id = doc.id;
-
-      const div = document.createElement('div');
-      div.className = 'item';
-
-      let imgTag = "";
-      if(item.imageUrl){
-        imgTag = `<img src="${item.imageUrl}" alt="사진" />`;
-      }
-
-      // 수정 중인 아이템 렌더링
-      if(editingId === id && item.seller === currentUser){
-        div.innerHTML = `
-          <input type="text" id="editName" value="${item.itemName}" />
-          <input type="number" id="editPrice" value="${item.price}" />
-          <select id="editStatus">
-            <option value="판매중" ${item.status==="판매중"?"selected":""}>판매중</option>
-            <option value="판매완료" ${item.status==="판매완료"?"selected":""}>판매완료</option>
-          </select>
-          <button onclick="saveEdit('${id}')">저장</button>
-          <button onclick="cancelEdit()">취소</button>
-        `;
-      } else {
-        div.innerHTML = `
-          ${imgTag} <b>${item.itemName}</b> – ${item.price} 서창<br/>
-          판매자: ${item.seller} | 상태: ${item.status}
-        `;
-
-        // 수정/삭제 버튼
-        if(item.seller === currentUser){
-          const btnEdit = document.createElement('button');
-          btnEdit.innerText = '수정';
-          btnEdit.onclick = () => {
-            editingId = id;
-            loadItems();
-          };
-          const btnDelete = document.createElement('button');
-          btnDelete.innerText = '삭제';
-          btnDelete.onclick = () => {
-            if(confirm("정말 삭제하시겠습니까?")){
-              db.collection("items").doc(id).delete().then(loadItems);
-            }
-          };
-          const btnComplete = document.createElement('button');
-          btnComplete.innerText = item.status === "판매중" ? "판매완료로 변경" : "판매중으로 변경";
-          btnComplete.onclick = () => {
-            db.collection("items").doc(id).update({
-              status: item.status === "판매중" ? "판매완료" : "판매중"
-            }).then(loadItems);
-          };
-
-          const actionDiv = document.createElement('div');
-          actionDiv.className = 'item-actions';
-          actionDiv.appendChild(btnEdit);
-          actionDiv.appendChild(btnDelete);
-          actionDiv.appendChild(btnComplete);
-          div.appendChild(actionDiv);
-        }
-      }
-
-      list.appendChild(div);
-    });
-  }
-
-  // 수정 저장 함수
-  async function saveEdit(id){
-    const newName = document.getElementById('editName').value.trim();
-    const newPrice = document.getElementById('editPrice').value.trim();
-    const newStatus = document.getElementById('editStatus').value;
-
-    if(!newName || !newPrice || newPrice <= 0){
-      alert('물건 이름과 올바른 가격(서창)을 입력하세요.');
-      return;
-    }
-
-    await db.collection("items").doc(id).update({
-      itemName: newName,
-      price: Number(newPrice),
-      status: newStatus
-    });
-    editingId = null;
-    loadItems();
-  }
-
-  function cancelEdit(){
-    editingId = null;
-    loadItems();
-  }
-
-  // 채팅 기능
-
-  const chatMessagesDiv = document.getElementById('chatMessages');
-  const chatInput = document.getElementById('chatInput');
-
-  function loadChats(){
-    db.collection("chat").orderBy("created", "asc").onSnapshot(snapshot=>{
-      chatMessagesDiv.innerHTML = "";
-      snapshot.forEach(doc=>{
-        const msg = doc.data();
-        const div = document.createElement('div');
-        div.className = 'chat-message';
-        div.innerHTML = `<b>${msg.user}</b>: ${escapeHtml(msg.text)}`;
-        chatMessagesDiv.appendChild(div);
+    const ref = storage.ref().child(`images/${Date.now()}_${file.name}`);
+    ref.put(file).then(snapshot => snapshot.ref.getDownloadURL()).then(url => {
+      db.collection("items").add({
+        itemName: name,
+        price: parseInt(price),
+        seller: currentUser,
+        status: "판매중",
+        photoURL: url,
+        created: new Date()
+      }).then(() => {
+        document.getElementById("itemName").value = "";
+        document.getElementById("price").value = "";
+        document.getElementById("photo").value = "";
+        loadItems();
       });
-      chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight;
     });
   }
 
-  function sendChat(){
-    const text = chatInput.value.trim();
-    if(!text) return;
-
-    db.collection("chat").add({
-      user: currentUser,
-      text: text,
-      created: firebase.firestore.FieldValue.serverTimestamp()
+  function loadItems() {
+    db.collection("items").orderBy("created", "desc").get().then(snapshot => {
+      const list = document.getElementById("itemList");
+      list.innerHTML = "";
+      snapshot.forEach(doc => {
+        const item = doc.data();
+        const div = document.createElement("div");
+        div.className = "item";
+        div.innerHTML = `<b>${item.itemName}</b> – ${item.price}서창<br>판매자: ${item.seller} | 상태: ${item.status}<br><img src="${item.photoURL}" alt="사진"><br>`;
+        if (item.seller === currentUser) {
+          div.innerHTML += `<button onclick="updateItem('${doc.id}', '판매완료')">판매완료</button>
+                            <button onclick="deleteItem('${doc.id}')">삭제</button>`;
+        } else {
+          div.innerHTML += `<button onclick="startChat('${item.seller}')">판매자와 채팅</button>`;
+        }
+        list.appendChild(div);
+      });
     });
-    chatInput.value = "";
   }
 
-  // XSS 방지용 escape 함수
-  function escapeHtml(text) {
-    return text.replace(/[&<>"']/g, m => ({
-      '&':'&amp;',
-      '<':'&lt;',
-      '>':'&gt;',
-      '"':'&quot;',
-      "'":'&#39;'
-    })[m]);
+  function updateItem(id, status) {
+    db.collection("items").doc(id).update({ status }).then(loadItems);
   }
 
+  function deleteItem(id) {
+    db.collection("items").doc(id).delete().then(loadItems);
+  }
+
+  function startChat(sellerId) {
+    currentChatUser = sellerId;
+    document.getElementById("mainPage").style.display = "none";
+    document.getElementById("chatPage").style.display = "block";
+    loadChat();
+  }
+
+  function loadChat() {
+    const idA = currentUser < currentChatUser ? currentUser : currentChatUser;
+    const idB = currentUser < currentChatUser ? currentChatUser : currentUser;
+    db.collection("chats").doc(`${idA}_${idB}`).collection("messages").orderBy("timestamp").onSnapshot(snapshot => {
+      const box = document.getElementById("chatBox");
+      box.innerHTML = "";
+      snapshot.forEach(doc => {
+        const msg = doc.data();
+        const p = document.createElement("p");
+        p.innerText = `${msg.sender}: ${msg.text}`;
+        box.appendChild(p);
+      });
+    });
+  }
+
+  function sendMessage() {
+    const text = document.getElementById("chatInput").value;
+    if (!text) return;
+    const idA = currentUser < currentChatUser ? currentUser : currentChatUser;
+    const idB = currentUser < currentChatUser ? currentChatUser : currentUser;
+    db.collection("chats").doc(`${idA}_${idB}`).collection("messages").add({
+      sender: currentUser,
+      text,
+      timestamp: new Date()
+    }).then(() => document.getElementById("chatInput").value = "");
+  }
+
+  function closeChat() {
+    document.getElementById("chatPage").style.display = "none";
+    document.getElementById("mainPage").style.display = "block";
+  }
 </script>
 </body>
 </html>
