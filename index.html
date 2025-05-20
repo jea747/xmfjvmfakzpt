@@ -1,130 +1,174 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>트러플마켓</title>
   <style>
     body {
       font-family: sans-serif;
-      margin: 20px;
-      background: #f9f9f9;
-    }
-    .container {
-      max-width: 500px;
-      margin: auto;
-      background: white;
+      max-width: 600px;
+      margin: 20px auto;
+      background: #fff8dc; /* 연한 바나나우유색 */
       padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      border-radius: 12px;
+      box-shadow: 0 0 15px #eee;
     }
     input, button {
       width: 100%;
       padding: 10px;
       margin: 8px 0;
+      font-size: 1rem;
+      border-radius: 8px;
+      border: 1px solid #ccc;
       box-sizing: border-box;
+    }
+    button {
+      background: #ffd966;
+      border: none;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background: #ffcc33;
     }
     .item {
       border-bottom: 1px solid #ddd;
       padding: 10px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .item-info {
+      flex-grow: 1;
+    }
+    .status-btn {
+      margin-left: 10px;
+      font-size: 0.9rem;
+      padding: 5px 10px;
+      border-radius: 8px;
+      background: #a2d5f2;
+      border: none;
+      cursor: pointer;
+    }
+    .status-btn.done {
+      background: #b6d7a8;
+      color: #3a662e;
     }
   </style>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 </head>
 <body>
-<div class="container" id="loginPage">
-  <h2>트러플마켓 로그인</h2>
-  <input type="text" id="studentId" placeholder="학번 (예: 5101)">
-  <input type="password" id="password" placeholder="비밀번호">
-  <button onclick="login()">로그인</button>
-  <p id="loginMsg"></p>
-</div>
 
-<div class="container" id="mainPage" style="display:none;">
+<h2>트러플마켓 로그인</h2>
+<input id="studentId" placeholder="학번 (예: 5101)" />
+<input id="password" placeholder="비밀번호" type="password" />
+<button onclick="login()">로그인</button>
+<p id="loginMsg" style="color:red;"></p>
+
+<div id="mainPage" style="display:none;">
   <h2>트러플마켓 🛒</h2>
   <p><b id="userInfo"></b>님 환영합니다.</p>
-  <input type="text" id="itemName" placeholder="물건 이름">
-  <input type="number" id="price" placeholder="가격 (서창)">
+
+  <input id="itemName" placeholder="물건 이름" />
+  <input id="price" placeholder="가격 (서창)" type="number" min="1" />
   <button onclick="addItem()">물건 등록</button>
+
   <h3>판매 목록</h3>
   <div id="itemList"></div>
 </div>
 
 <script>
-  // Firebase 초기화
-  const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_AUTH_DOMAIN",
-    projectId: "YOUR_PROJECT_ID",
-  };
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.firestore();
-
-  // 로그인 관련
+  // 유효 학번 배열 (20번 제외)
   const validIds = Array.from({ length: 23 }, (_, i) => i + 1)
     .filter(n => n !== 20)
     .map(n => "51" + String(n).padStart(2, '0'));
 
   let currentUser = null;
+  let items = []; // 로컬에 저장할 아이템 리스트
 
   function login() {
-    const id = document.getElementById("studentId").value;
-    const pw = document.getElementById("password").value;
-    if (pw !== "1234") {
-      document.getElementById("loginMsg").innerText = "비밀번호가 틀렸습니다.";
+    const id = document.getElementById('studentId').value.trim();
+    const pw = document.getElementById('password').value;
+    const msg = document.getElementById('loginMsg');
+
+    if (pw !== '1234') {
+      msg.textContent = '비밀번호가 틀렸습니다.';
       return;
     }
     if (!validIds.includes(id)) {
-      document.getElementById("loginMsg").innerText = "유효하지 않은 학번입니다.";
+      msg.textContent = '유효하지 않은 학번입니다.';
       return;
     }
+
     currentUser = id;
-    document.getElementById("loginPage").style.display = "none";
-    document.getElementById("mainPage").style.display = "block";
-    document.getElementById("userInfo").innerText = id;
-    loadItems();
+    msg.textContent = '';
+    document.getElementById('userInfo').textContent = id;
+    document.getElementById('mainPage').style.display = 'block';
+    document.getElementById('studentId').style.display = 'none';
+    document.getElementById('password').style.display = 'none';
+    document.querySelector('button').style.display = 'none';
+
+    renderItems();
   }
 
-  // 아이템 등록
   function addItem() {
-    const name = document.getElementById("itemName").value;
-    const price = document.getElementById("price").value;
-    if (!name || !price) return alert("물건 이름과 가격을 입력하세요.");
-    db.collection("items").add({
+    const name = document.getElementById('itemName').value.trim();
+    const price = document.getElementById('price').value;
+
+    if (!name || !price || price <= 0) {
+      alert('물건 이름과 올바른 가격(서창)을 입력하세요.');
+      return;
+    }
+
+    items.unshift({
       itemName: name,
-      price: parseInt(price),
+      price: Number(price),
       seller: currentUser,
-      status: "판매중",
-      created: new Date()
-    }).then(() => {
-      document.getElementById("itemName").value = "";
-      document.getElementById("price").value = "";
-      loadItems();
+      status: '판매중',
+      id: Date.now() + Math.random() // 고유 id
     });
+
+    document.getElementById('itemName').value = '';
+    document.getElementById('price').value = '';
+    renderItems();
   }
 
-  // 아이템 불러오기
-  function loadItems() {
-    db.collection("items").orderBy("created", "desc").get().then(snapshot => {
-      const list = document.getElementById("itemList");
-      list.innerHTML = "";
-      snapshot.forEach(doc => {
-        const item = doc.data();
-        const div = document.createElement("div");
-        div.className = "item";
-        div.innerHTML = `<b>${item.itemName}</b> – ${item.price}서창<br>판매자: ${item.seller} | 상태: ${item.status}`;
-        if (item.seller === currentUser && item.status === "판매중") {
-          const btn = document.createElement("button");
-          btn.innerText = "판매완료로 변경";
-          btn.onclick = () => {
-            db.collection("items").doc(doc.id).update({ status: "판매완료" }).then(loadItems);
-          };
-          div.appendChild(btn);
-        }
-        list.appendChild(div);
-      });
+  function toggleStatus(id) {
+    items = items.map(item => {
+      if (item.id === id && item.seller === currentUser) {
+        item.status = item.status === '판매중' ? '판매완료' : '판매중';
+      }
+      return item;
+    });
+    renderItems();
+  }
+
+  function renderItems() {
+    const list = document.getElementById('itemList');
+    list.innerHTML = '';
+
+    items.forEach(item => {
+      const div = document.createElement('div');
+      div.className = 'item';
+
+      const info = document.createElement('div');
+      info.className = 'item-info';
+      info.innerHTML = `<b>${item.itemName}</b> – ${item.price} 서창<br>판매자: ${item.seller} | 상태: ${item.status}`;
+
+      div.appendChild(info);
+
+      if (item.seller === currentUser) {
+        const btn = document.createElement('button');
+        btn.className = 'status-btn' + (item.status === '판매완료' ? ' done' : '');
+        btn.textContent = item.status === '판매중' ? '판매완료로 변경' : '판매중으로 변경';
+        btn.onclick = () => toggleStatus(item.id);
+        div.appendChild(btn);
+      }
+
+      list.appendChild(div);
     });
   }
 </script>
+
 </body>
 </html>
