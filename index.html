@@ -8,7 +8,7 @@
       font-family: sans-serif;
       max-width: 600px;
       margin: 20px auto;
-      background: #fff8dc; /* 연한 바나나우유색 */
+      background: #fff8dc;
       padding: 20px;
       border-radius: 12px;
       box-shadow: 0 0 15px #eee;
@@ -41,19 +41,34 @@
     }
     .item-info {
       flex-grow: 1;
+      white-space: pre-wrap;
     }
-    .status-btn {
-      margin-left: 10px;
+    .status-btn, .edit-btn, .delete-btn {
+      margin-left: 6px;
       font-size: 0.9rem;
       padding: 5px 10px;
       border-radius: 8px;
-      background: #a2d5f2;
       border: none;
       cursor: pointer;
+    }
+    .status-btn {
+      background: #a2d5f2;
     }
     .status-btn.done {
       background: #b6d7a8;
       color: #3a662e;
+    }
+    .edit-btn {
+      background: #f7b733;
+      color: #fff;
+    }
+    .delete-btn {
+      background: #ff6b6b;
+      color: #fff;
+    }
+    .edit-input {
+      width: 45%;
+      margin-right: 10px;
     }
   </style>
 </head>
@@ -78,13 +93,13 @@
 </div>
 
 <script>
-  // 유효 학번 배열 (20번 제외)
   const validIds = Array.from({ length: 23 }, (_, i) => i + 1)
     .filter(n => n !== 20)
     .map(n => "51" + String(n).padStart(2, '0'));
 
   let currentUser = null;
-  let items = []; // 로컬에 저장할 아이템 리스트
+  let items = [];
+  let editingId = null; // 현재 수정 중인 아이템 id
 
   function login() {
     const id = document.getElementById('studentId').value.trim();
@@ -125,7 +140,7 @@
       price: Number(price),
       seller: currentUser,
       status: '판매중',
-      id: Date.now() + Math.random() // 고유 id
+      id: Date.now() + Math.random()
     });
 
     document.getElementById('itemName').value = '';
@@ -143,6 +158,49 @@
     renderItems();
   }
 
+  function deleteItem(id) {
+    if (!confirm('정말 삭제할까요?')) return;
+    items = items.filter(item => item.id !== id || item.seller !== currentUser);
+    renderItems();
+  }
+
+  function startEdit(id) {
+    if (editingId !== null) {
+      alert('먼저 수정 중인 글을 저장하거나 취소하세요.');
+      return;
+    }
+    editingId = id;
+    renderItems();
+  }
+
+  function saveEdit(id) {
+    const nameInput = document.getElementById('edit-name-' + id);
+    const priceInput = document.getElementById('edit-price-' + id);
+    const newName = nameInput.value.trim();
+    const newPrice = priceInput.value;
+
+    if (!newName || !newPrice || newPrice <= 0) {
+      alert('물건 이름과 올바른 가격(서창)을 입력하세요.');
+      return;
+    }
+
+    items = items.map(item => {
+      if (item.id === id && item.seller === currentUser) {
+        item.itemName = newName;
+        item.price = Number(newPrice);
+      }
+      return item;
+    });
+
+    editingId = null;
+    renderItems();
+  }
+
+  function cancelEdit() {
+    editingId = null;
+    renderItems();
+  }
+
   function renderItems() {
     const list = document.getElementById('itemList');
     list.innerHTML = '';
@@ -151,18 +209,62 @@
       const div = document.createElement('div');
       div.className = 'item';
 
-      const info = document.createElement('div');
-      info.className = 'item-info';
-      info.innerHTML = `<b>${item.itemName}</b> – ${item.price} 서창<br>판매자: ${item.seller} | 상태: ${item.status}`;
+      if (editingId === item.id && item.seller === currentUser) {
+        // 수정 중 UI
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.value = item.itemName;
+        nameInput.id = 'edit-name-' + item.id;
+        nameInput.className = 'edit-input';
 
-      div.appendChild(info);
+        const priceInput = document.createElement('input');
+        priceInput.type = 'number';
+        priceInput.min = 1;
+        priceInput.value = item.price;
+        priceInput.id = 'edit-price-' + item.id;
+        priceInput.className = 'edit-input';
 
-      if (item.seller === currentUser) {
-        const btn = document.createElement('button');
-        btn.className = 'status-btn' + (item.status === '판매완료' ? ' done' : '');
-        btn.textContent = item.status === '판매중' ? '판매완료로 변경' : '판매중으로 변경';
-        btn.onclick = () => toggleStatus(item.id);
-        div.appendChild(btn);
+        div.appendChild(nameInput);
+        div.appendChild(priceInput);
+
+        const saveBtn = document.createElement('button');
+        saveBtn.textContent = '저장';
+        saveBtn.className = 'edit-btn';
+        saveBtn.onclick = () => saveEdit(item.id);
+        div.appendChild(saveBtn);
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.textContent = '취소';
+        cancelBtn.className = 'delete-btn';
+        cancelBtn.onclick = cancelEdit;
+        div.appendChild(cancelBtn);
+
+      } else {
+        // 일반 UI
+        const info = document.createElement('div');
+        info.className = 'item-info';
+        info.innerHTML = `<b>${item.itemName}</b> – ${item.price} 서창<br>판매자: ${item.seller} | 상태: ${item.status}`;
+        div.appendChild(info);
+
+        if (item.seller === currentUser) {
+          const statusBtn = document.createElement('button');
+          statusBtn.className = 'status-btn' + (item.status === '판매완료' ? ' done' : '');
+          statusBtn.textContent = item.status === '판매중' ? '판매완료로 변경' : '판매중으로 변경';
+          statusBtn.onclick = () => toggleStatus(item.id);
+          div.appendChild(statusBtn);
+
+          const editBtn = document.createElement('button');
+          editBtn.textContent = '수정';
+          editBtn.className = 'edit-btn';
+          editBtn.onclick = () => startEdit(item.id);
+          div.appendChild(editBtn);
+
+          const deleteBtn = document.createElement('button');
+          deleteBtn.textContent = '삭제';
+          deleteBtn.className = 'delete-btn';
+          deleteBtn.onclick = () => deleteItem(item.id);
+          div.appendChild(deleteBtn);
+        }
       }
 
       list.appendChild(div);
