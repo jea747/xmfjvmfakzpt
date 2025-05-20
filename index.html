@@ -4,22 +4,18 @@
   <meta charset="UTF-8" />
   <title>트러플마켓</title>
   <style>
-    body { font-family: sans-serif; background: #f5f5dc; padding: 20px; max-width: 700px; margin: auto; }
-    .container { background: white; padding: 20px; border-radius: 10px; margin-bottom: 30px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-    input, button, select, textarea { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box; }
+    body { font-family: sans-serif; background: #f5f5dc; padding: 20px; }
+    .container { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 10px; }
+    input, button, textarea { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box; }
     .item { border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; border-radius: 5px; }
-    button.small { width: auto; margin-right: 5px; padding: 5px 10px; }
-    #chatBox { height: 300px; border: 1px solid #ccc; overflow-y: auto; padding: 10px; background: #fafafa; }
-    #chatInput { width: calc(100% - 80px); display: inline-block; }
-    #sendBtn { width: 70px; display: inline-block; }
-    .chatMsg { margin-bottom: 8px; }
-    .chatMsg b { color: #333; }
-    .chatMsg span { margin-left: 10px; }
+    #chatBox { height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; border-radius: 5px; background: #fafafa; }
+    .chatMsg { margin-bottom: 5px; }
+    .chatMsg b { color: #555; }
   </style>
-  <!-- Firebase v9 modular SDK -->
+  <!-- Firebase SDK -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, query, orderBy, onSnapshot, updateDoc, doc, deleteDoc, where } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, onSnapshot, query, orderBy, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyBZK8xjYlxsR3wMHFDTvYa6UI0XarCGOqo",
@@ -34,19 +30,16 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    const validIds = Array.from({length:23}, (_,i) => i+1).filter(n => n!==20).map(n => "51" + String(n).padStart(2,"0"));
+    // 유효한 학번 목록 (20 제외)
+    const validIds = Array.from({ length: 23 }, (_, i) => i + 1).filter(n => n !== 20).map(n => "51" + String(n).padStart(2, '0'));
 
     let currentUser = null;
 
-    window.login = async function() {
+    window.login = () => {
       const id = document.getElementById("studentId").value.trim();
       const pw = document.getElementById("password").value.trim();
-      if (pw !== "1234") {
-        alert("비밀번호가 틀렸습니다.");
-        return;
-      }
-      if (!validIds.includes(id)) {
-        alert("유효하지 않은 학번입니다.");
+      if (pw !== "1234" || !validIds.includes(id)) {
+        alert("로그인 실패! 학번과 비밀번호를 확인하세요.");
         return;
       }
       currentUser = id;
@@ -57,7 +50,7 @@
       setupChatListener();
     };
 
-    window.addItem = async function() {
+    window.addItem = async () => {
       const name = document.getElementById("itemName").value.trim();
       const price = Number(document.getElementById("price").value);
       if (!name || !price) {
@@ -74,68 +67,53 @@
         });
         document.getElementById("itemName").value = "";
         document.getElementById("price").value = "";
+        loadItems();
       } catch(e) {
-        alert("등록 실패: " + e.message);
+        alert("물건 등록 실패: " + e.message);
       }
     };
 
     async function loadItems() {
-      const q = query(collection(db, "items"), orderBy("created", "desc"));
-      const snapshot = await getDocs(q);
       const list = document.getElementById("itemList");
       list.innerHTML = "";
-      snapshot.forEach(docSnap => {
-        const item = docSnap.data();
-        const id = docSnap.id;
-        const div = document.createElement("div");
-        div.className = "item";
-        div.innerHTML = `
-          <b>${item.itemName}</b> – ${item.price} 서창<br>
-          판매자: ${item.seller} | 상태: ${item.status}
-        `;
-        if (item.seller === currentUser) {
-          const doneBtn = document.createElement("button");
-          doneBtn.textContent = "판매완료";
-          doneBtn.className = "small";
-          doneBtn.onclick = async () => {
-            await updateDoc(doc(db, "items", id), { status: "판매완료" });
-            loadItems();
-          };
-          const delBtn = document.createElement("button");
-          delBtn.textContent = "삭제";
-          delBtn.className = "small";
-          delBtn.onclick = async () => {
-            await deleteDoc(doc(db, "items", id));
-            loadItems();
-          };
-          div.appendChild(doneBtn);
-          div.appendChild(delBtn);
-        }
-        list.appendChild(div);
-      });
-    }
-
-    // 채팅 관련
-    function setupChatListener() {
-      const chatBox = document.getElementById("chatBox");
-      const chatRef = collection(db, "chats");
-
-      // 실시간 업데이트
-      const q = query(chatRef, orderBy("created"));
-      onSnapshot(q, (snapshot) => {
-        chatBox.innerHTML = "";
-        snapshot.forEach(docSnap => {
-          const chat = docSnap.data();
+      try {
+        const q = query(collection(db, "items"), orderBy("created", "desc"));
+        const querySnapshot = await getDocs(q);
+        querySnapshot.forEach(docSnap => {
+          const item = docSnap.data();
           const div = document.createElement("div");
-          div.className = "chatMsg";
-          div.innerHTML = `<b>${chat.sender}</b><span>${chat.message}</span>`;
-          chatBox.appendChild(div);
+          div.className = "item";
+          div.innerHTML = `
+            <b>${item.itemName}</b> – ${item.price} 서창<br>
+            판매자: ${item.seller} | 상태: ${item.status}<br>
+          `;
+
+          // 본인 물건만 판매완료, 삭제 버튼 보이기
+          if (item.seller === currentUser) {
+            const doneBtn = document.createElement("button");
+            doneBtn.innerText = "판매완료";
+            doneBtn.onclick = async () => {
+              await updateDoc(doc(db, "items", docSnap.id), { status: "판매완료" });
+              loadItems();
+            };
+            const delBtn = document.createElement("button");
+            delBtn.innerText = "삭제";
+            delBtn.onclick = async () => {
+              await deleteDoc(doc(db, "items", docSnap.id));
+              loadItems();
+            };
+            div.appendChild(doneBtn);
+            div.appendChild(delBtn);
+          }
+
+          list.appendChild(div);
         });
-        chatBox.scrollTop = chatBox.scrollHeight;
-      });
+      } catch(e) {
+        alert("목록 불러오기 실패: " + e.message);
+      }
     }
 
-    window.sendMessage = async function() {
+    window.sendMessage = async () => {
       const msgInput = document.getElementById("chatInput");
       const msg = msgInput.value.trim();
       if (!msg) return;
@@ -150,6 +128,23 @@
         alert("채팅 전송 실패: " + e.message);
       }
     };
+
+    function setupChatListener() {
+      const chatBox = document.getElementById("chatBox");
+      const q = query(collection(db, "chats"), orderBy("created"));
+
+      onSnapshot(q, (snapshot) => {
+        chatBox.innerHTML = "";
+        snapshot.forEach(docSnap => {
+          const chat = docSnap.data();
+          const div = document.createElement("div");
+          div.className = "chatMsg";
+          div.innerHTML = `<b>${chat.sender}</b>: ${chat.message}`;
+          chatBox.appendChild(div);
+        });
+        chatBox.scrollTop = chatBox.scrollHeight;
+      });
+    }
   </script>
 </head>
 <body>
@@ -162,20 +157,20 @@
 
   <div class="container" id="mainPage" style="display:none;">
     <h2>트러플마켓 🛒</h2>
-    <p><b id="userInfo"></b>님 환영합니다.</p>
+    <p><b id="userInfo"></b>님 환영합니다!</p>
 
     <h3>물건 등록</h3>
     <input type="text" id="itemName" placeholder="물건 이름" />
     <input type="number" id="price" placeholder="가격 (서창)" />
-    <button onclick="addItem()">등록</button>
+    <button onclick="addItem()">물건 등록</button>
 
     <h3>판매 목록</h3>
     <div id="itemList"></div>
 
-    <h3>채팅방</h3>
+    <h3>채팅</h3>
     <div id="chatBox"></div>
-    <input id="chatInput" placeholder="메시지 입력..." />
-    <button id="sendBtn" onclick="sendMessage()">전송</button>
+    <textarea id="chatInput" rows="3" placeholder="메시지를 입력하세요"></textarea>
+    <button onclick="sendMessage()">전송</button>
   </div>
 </body>
 </html>
