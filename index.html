@@ -4,12 +4,12 @@
   <meta charset="UTF-8">
   <title>트러플마켓</title>
   <style>
-    body { font-family: sans-serif; background: #f8f8f8; margin: 0; padding: 20px; }
-    .container { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-    input, button, textarea { width: 100%; padding: 10px; margin: 8px 0; box-sizing: border-box; }
-    .item, .chat { border-bottom: 1px solid #ddd; padding: 10px 0; }
-    .item img { max-width: 100px; display: block; margin: 5px 0; }
-    .chat-box { max-height: 300px; overflow-y: auto; background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 6px; }
+    body { font-family: sans-serif; background: #f5f5dc; padding: 20px; }
+    .container { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 10px; }
+    input, button { width: 100%; padding: 10px; margin: 10px 0; }
+    .item { border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; border-radius: 5px; }
+    img { max-width: 100%; height: auto; margin-top: 10px; }
+    textarea { width: 100%; padding: 10px; margin: 10px 0; }
   </style>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
@@ -26,7 +26,7 @@
 
 <div class="container" id="mainPage" style="display:none;">
   <h2>트러플마켓 🛒</h2>
-  <p><b id="userInfo"></b>님 환영합니다.</p>
+  <p><b id="userInfo"></b>님</p>
   <input type="text" id="itemName" placeholder="물건 이름">
   <input type="number" id="price" placeholder="가격 (서창)">
   <input type="file" id="photo">
@@ -35,21 +35,14 @@
   <div id="itemList"></div>
 </div>
 
-<!-- 채팅 모달 -->
-<div class="container" id="chatPage" style="display:none;">
-  <h2>채팅</h2>
-  <div class="chat-box" id="chatBox"></div>
-  <textarea id="chatInput" placeholder="메시지"></textarea>
-  <button onclick="sendMessage()">보내기</button>
-  <button onclick="closeChat()">닫기</button>
-</div>
-
 <script>
   const firebaseConfig = {
     apiKey: "YOUR_API_KEY",
     authDomain: "YOUR_AUTH_DOMAIN",
     projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_STORAGE_BUCKET"
+    storageBucket: "YOUR_STORAGE_BUCKET",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
   };
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
@@ -57,13 +50,14 @@
 
   const validIds = Array.from({ length: 23 }, (_, i) => i + 1).filter(n => n !== 20).map(n => "51" + String(n).padStart(2, '0'));
   let currentUser = null;
-  let currentChatUser = null;
 
   function login() {
     const id = document.getElementById("studentId").value;
     const pw = document.getElementById("password").value;
-    if (pw !== "1234") return document.getElementById("loginMsg").innerText = "비밀번호가 틀렸습니다.";
-    if (!validIds.includes(id)) return document.getElementById("loginMsg").innerText = "유효하지 않은 학번입니다.";
+    if (pw !== "1234" || !validIds.includes(id)) {
+      document.getElementById("loginMsg").innerText = "로그인 실패";
+      return;
+    }
     currentUser = id;
     document.getElementById("loginPage").style.display = "none";
     document.getElementById("mainPage").style.display = "block";
@@ -75,23 +69,23 @@
     const name = document.getElementById("itemName").value;
     const price = document.getElementById("price").value;
     const file = document.getElementById("photo").files[0];
-    if (!name || !price || !file) return alert("모든 항목을 입력해주세요.");
+    if (!name || !price || !file) return alert("모든 항목을 입력하세요");
 
-    const ref = storage.ref().child(`images/${Date.now()}_${file.name}`);
+    const ref = storage.ref("images/" + Date.now() + "_" + file.name);
     ref.put(file).then(snapshot => snapshot.ref.getDownloadURL()).then(url => {
-      db.collection("items").add({
+      return db.collection("items").add({
         itemName: name,
         price: parseInt(price),
         seller: currentUser,
         status: "판매중",
-        photoURL: url,
+        photo: url,
         created: new Date()
-      }).then(() => {
-        document.getElementById("itemName").value = "";
-        document.getElementById("price").value = "";
-        document.getElementById("photo").value = "";
-        loadItems();
       });
+    }).then(() => {
+      document.getElementById("itemName").value = "";
+      document.getElementById("price").value = "";
+      document.getElementById("photo").value = "";
+      loadItems();
     });
   }
 
@@ -103,63 +97,26 @@
         const item = doc.data();
         const div = document.createElement("div");
         div.className = "item";
-        div.innerHTML = `<b>${item.itemName}</b> – ${item.price}서창<br>판매자: ${item.seller} | 상태: ${item.status}<br><img src="${item.photoURL}" alt="사진"><br>`;
+        div.innerHTML = `
+          <b>${item.itemName}</b> – ${item.price} 서창<br>
+          <img src="${item.photo}" alt="사진"><br>
+          판매자: ${item.seller} | 상태: ${item.status}<br>
+        `;
         if (item.seller === currentUser) {
-          div.innerHTML += `<button onclick="updateItem('${doc.id}', '판매완료')">판매완료</button>
-                            <button onclick="deleteItem('${doc.id}')">삭제</button>`;
-        } else {
-          div.innerHTML += `<button onclick="startChat('${item.seller}')">판매자와 채팅</button>`;
+          const doneBtn = document.createElement("button");
+          doneBtn.innerText = "판매완료";
+          doneBtn.onclick = () => db.collection("items").doc(doc.id).update({ status: "판매완료" }).then(loadItems);
+
+          const delBtn = document.createElement("button");
+          delBtn.innerText = "삭제";
+          delBtn.onclick = () => db.collection("items").doc(doc.id).delete().then(loadItems);
+
+          div.appendChild(doneBtn);
+          div.appendChild(delBtn);
         }
         list.appendChild(div);
       });
     });
-  }
-
-  function updateItem(id, status) {
-    db.collection("items").doc(id).update({ status }).then(loadItems);
-  }
-
-  function deleteItem(id) {
-    db.collection("items").doc(id).delete().then(loadItems);
-  }
-
-  function startChat(sellerId) {
-    currentChatUser = sellerId;
-    document.getElementById("mainPage").style.display = "none";
-    document.getElementById("chatPage").style.display = "block";
-    loadChat();
-  }
-
-  function loadChat() {
-    const idA = currentUser < currentChatUser ? currentUser : currentChatUser;
-    const idB = currentUser < currentChatUser ? currentChatUser : currentUser;
-    db.collection("chats").doc(`${idA}_${idB}`).collection("messages").orderBy("timestamp").onSnapshot(snapshot => {
-      const box = document.getElementById("chatBox");
-      box.innerHTML = "";
-      snapshot.forEach(doc => {
-        const msg = doc.data();
-        const p = document.createElement("p");
-        p.innerText = `${msg.sender}: ${msg.text}`;
-        box.appendChild(p);
-      });
-    });
-  }
-
-  function sendMessage() {
-    const text = document.getElementById("chatInput").value;
-    if (!text) return;
-    const idA = currentUser < currentChatUser ? currentUser : currentChatUser;
-    const idB = currentUser < currentChatUser ? currentChatUser : currentUser;
-    db.collection("chats").doc(`${idA}_${idB}`).collection("messages").add({
-      sender: currentUser,
-      text,
-      timestamp: new Date()
-    }).then(() => document.getElementById("chatInput").value = "");
-  }
-
-  function closeChat() {
-    document.getElementById("chatPage").style.display = "none";
-    document.getElementById("mainPage").style.display = "block";
   }
 </script>
 </body>
