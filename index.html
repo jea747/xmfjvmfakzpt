@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <title>트러플마켓</title>
+  <title>  <title>\uud2b8러플마켓</title>
   <style>
     body { font-family: sans-serif; background: #f5f5dc; padding: 20px; }
     .container { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 10px; }
@@ -17,7 +17,7 @@
 </head>
 <body>
 <div class="container" id="loginPage">
-  <h2>트러플마켓 로그인</h2>
+  <h2>  <h2>\uud2b8러플마켓 로그인</h2>
   <input type="text" id="studentId" placeholder="학번 (예: 5101)">
   <input type="password" id="password" placeholder="비밀번호">
   <button onclick="login()">로그인</button>
@@ -25,7 +25,7 @@
 </div>
 
 <div class="container" id="mainPage" style="display:none;">
-  <h2>트러플마켓 🛒</h2>
+  <h2>  <h2>\uud2b8러플마켓 🛒</h2>
   <p><b id="userInfo"></b>님</p>
   <input type="text" id="itemName" placeholder="물건 이름">
   <input type="number" id="price" placeholder="가격 (서창)">
@@ -86,6 +86,9 @@
       document.getElementById("price").value = "";
       document.getElementById("photo").value = "";
       loadItems();
+    }).catch(err => {
+      console.error("물건 등록 실패:", err);
+      alert("오류가 발생했어요. F12 키를 누르고 컨솔에서 에러 메시지를 확인해요.");
     });
   }
 
@@ -100,7 +103,7 @@
         div.innerHTML = `
           <b>${item.itemName}</b> – ${item.price} 서창<br>
           <img src="${item.photo}" alt="사진"><br>
-          판매자: ${item.seller} | 상태: ${item.status}<br>
+          판매자: ${item.seller} | 상황: ${item.status}<br>
         `;
         if (item.seller === currentUser) {
           const doneBtn = document.createElement("button");
